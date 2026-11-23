@@ -25,5 +25,19 @@ async function readLayout(buffer, label) {
     if(h||/^(?:б\/н(?:\s|$)|№?\s*\?$)/i.test(value)){for(let c=col;c<col+4;c++)headers.set(c,{row,n:h?.[1]||value});continue}
     if(yellow[+(attr(m[1],'s')||0)])boxes.push({p:headers.get(col)?.row<row?headers.get(col).n:'Уточнить ('+a+')',id:label+'!'+a,raw:value});
   }
+  const relPath=path.replace(/([^/]+)$/, '_rels/$1.rels');
+  if(zip.file(relPath)){
+    const sheetRels=await xml(relPath);
+    const byAddress=new Map(boxes.map(box=>[box.id.slice(box.id.lastIndexOf('!')+1),box]));
+    for(const rel of sheetRels.documentElement.children){
+      if(!/\/(?:comments|threadedComment)$/i.test(rel.getAttribute('Type')))continue;
+      const notesPath=new URL(rel.getAttribute('Target'),'https://xlsx.local/'+path).pathname.slice(1);
+      const notes=await xml(notesPath);
+      for(const note of notes.querySelectorAll('[ref]')){
+        const box=byAddress.get(note.getAttribute('ref'));
+        if(box){const content=note.getElementsByTagNameNS('*','text')[0]?.textContent?.trim();if(content)box.comment=[box.comment,content].filter(Boolean).join('\u000a')}
+      }
+    }
+  }
   return boxes
 }
