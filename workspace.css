@@ -1,0 +1,11 @@
+:root{--rail:238px;--forest:#19382e;--line:#d6dfd6}
+body{min-height:100vh;background:#f4f6f2}
+header{position:fixed;left:0;top:0;width:var(--rail);height:84px;padding:24px;background:var(--forest);z-index:2}
+nav{position:fixed;inset:84px auto 0 0;width:var(--rail);padding:12px;margin:0;background:var(--forest);display:flex;flex-direction:column;flex-wrap:nowrap;gap:6px}
+nav button{display:flex;align-items:center;gap:12px;text-align:left;color:#dce8df;border-radius:8px;padding:14px 12px;font-size:15px}
+nav button.active{background:#dff0d6;color:#183c2d}nav button:hover:not(.active){background:#294b40}
+svg{width:20px;height:20px;flex:none}main{margin:0 0 0 var(--rail);max-width:1290px;padding:clamp(16px,3vw,48px)}
+.directory{margin:30px 0}.dir-tools,.pager,#alias{display:flex;gap:9px;flex-wrap:wrap;align-items:center}.dir-tools input{flex:1;min-width:180px}.table-scroll{overflow:auto;margin:16px 0}.table-scroll td{overflow-wrap:anywhere}.table-scroll th{background:#edf3ed}.pager span{margin-right:auto}.pager button,.minor{background:#e7efe7;color:#254c39}.minor{font-size:14px;padding:5px 9px}
+.file-control{position:relative;display:block;max-width:100%;width:fit-content}.file-control input{position:absolute;inset:0;z-index:1;opacity:0;width:100%;height:100%;cursor:pointer}.file-caption{display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid #a6bcac;border-radius:8px;background:#f2f7f1;color:#23523b}.file-caption span{overflow-wrap:anywhere;font-weight:400}.file-control:focus-within .file-caption{outline:2px solid #37825b}
+#review summary{list-style:none;padding:8px 0}#review summary::-webkit-details-marker{display:none}#review summary:before{content:'';display:inline-block;width:7px;height:7px;border-right:2px solid #52735b;border-top:2px solid #52735b;transform:rotate(45deg);margin:0 12px 2px 2px}#review details[open]>summary:before{transform:rotate(135deg)}#review small{font-weight:400;color:#56665b}
+@media(max-width:760px){:root{--rail:66px}header{height:66px;padding:0;justify-content:center}header strong{font-size:0}header b{font-size:21px}nav{top:66px;padding:8px}nav button{justify-content:center;font-size:0;gap:0;padding:14px 0}main{padding:10px}section{padding:16px}h1{font-size:25px}.dir-tools>*{max-width:100%}}

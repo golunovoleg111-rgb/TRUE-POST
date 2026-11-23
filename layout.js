@@ -13,7 +13,7 @@ async function readLayout(buffer, label) {
   const fills=children('fills').map(f=>{const color=f.getElementsByTagNameNS('*','fgColor')[0];return color?.getAttribute('rgb')?.slice(-6).toUpperCase()==='FFFF00'||['5','13'].includes(color?.getAttribute('indexed'))});
   const yellow=children('cellXfs').map(f=>fills[Number(f.getAttribute('fillId'))]);
   const strings=zip.file('xl/sharedStrings.xml')?Array.from((await xml('xl/sharedStrings.xml')).getElementsByTagNameNS('*','si'),s=>Array.from(s.getElementsByTagNameNS('*','t'),t=>t.textContent).join('')):[];
-  const raw=await zip.file(path).async('string'), headers=[], boxes=[];
+  const raw=await zip.file(path).async('string'), headers=new Map(), boxes=[];
   const attr=(s,k)=>s.match(new RegExp('\\s'+k+'="([^"]*)"'))?.[1];
   for(const m of raw.matchAll(/<(?:\w+:)?c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/(?:\w+:)?c>)/g)){
     if(!m[2])continue;
@@ -22,8 +22,8 @@ async function readLayout(buffer, label) {
     if(!value||!a)continue;
     const i=a.match(/^([A-Z]+)(\d+)$/), col=[...i[1]].reduce((n,c)=>26*n+c.charCodeAt(0)-64,0), row=+i[2];
     const h=value.match(/^(?:пал+ет[аы]?\s*)?№\s*(\d+)(?:\s*(?:[-–].*|\([^)]*\)))?$/i);
-    if(h||/^(?:б\/н(?:\s|$)|№?\s*\?$)/i.test(value)){headers.push({row,col,n:h?.[1]||value});continue}
-    if(yellow[+(attr(m[1],'s')||0)])boxes.push({row,col,a,value});
+    if(h||/^(?:б\/н(?:\s|$)|№?\s*\?$)/i.test(value)){for(let c=col;c<col+4;c++)headers.set(c,{row,n:h?.[1]||value});continue}
+    if(yellow[+(attr(m[1],'s')||0)])boxes.push({p:headers.get(col)?.row<row?headers.get(col).n:'Уточнить ('+a+')',id:label+'!'+a,raw:value});
   }
-  return boxes.map(({row,col,a,value})=>{const h=headers.filter(x=>x.row<row&&x.col<=col&&col<x.col+4).at(-1);return {p:h?.n||'Уточнить ('+a+')',id:label+'!'+a,raw:value}})
+  return boxes
 }
