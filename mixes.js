@@ -1,16 +1,35 @@
+const colorAliases = new Map([
+  ['т/з','темно-зеленый'], ['т/с','темно-синий'], ['с/с','светло-серый'],
+  ['с/б','светло-бежевый'], ['т/б','темно-бежевый'],
+  ['бел','белый'], ['крас','красный'], ['мол','молочный'],
+  ['роз','розовый'], ['чер','черный'], ['черное','черный'],
+  ['синие','синий'], ['голубые','голубой'],
+  ['коринчевый','коричневый'],
+]);
+
+const warehouseProducts = {
+  'квж№1':'21_К_Вельвет',
+  'кзж№1':'216_К_Замша_№1',
+  'кбж№1':'211_КБрюки_жилет',
+};
+function mappedProduct(product) {
+  const key=norm(product);
+  return db.aliases[key] || (Object.hasOwn(warehouseProducts,key) ? warehouseProducts[key] : product);
+}
+
 function colorKey(value) {
   let color = norm(value).replace(/[‐‑–—]/g,'-');
-  const stripe = /(?:[\s_*-]+[пp]|[\s_-]+в\s+полоску)$/u;
+  const stripe = /(?:[\s_*-]+[пp]|[\s_-]+в[\s_-]+пол(?:ос|со)ку)$/u;
   const striped = stripe.test(color);
   color = color.replace(stripe,'').replace(/\s*\/\s*/g,'/').replace(/[\s_-]+/g,'-');
-  color = ({'с/с':'светло-серый','т/с':'темно-синий'})[color] || color;
+  color = colorAliases.get(color) || color;
   return color + (striped ? '_п' : '');
 }
 
 function decode(raw) {
   let product='', color='', pending=false;
   const items=[];
-  const add=(size='',qty=0)=>items.push({product,color,size,qty,barcode:size?catalogIndex.lookup(db.aliases[norm(product)]||product,color,size):''});
+  const add=(size='',qty=0)=>items.push({product,color,size,qty,barcode:size?catalogIndex.lookup(mappedProduct(product),color,size):''});
   const setColor=value=>{if(pending)add();color=value;pending=true};
   const quantityPattern=/^(\d+(?:\s*[-–/]\s*\d+)?)\s*[рp]?\s*[-–—]\s*(\d+)\s*(?:шт\.?)?$/i;
   function consume(line){
@@ -50,7 +69,7 @@ function reviewContents(){
   const html=boxes.map((b,i)=>{
     if(!showReady&&!needsCheck(b))return '';
     const rows=b.items.map((x,j)=>{
-      const product=db.aliases[norm(x.product)]||x.product;
+      const product=mappedProduct(x.product);
       const choices=db.catalog.filter(v=>norm(v.product)===norm(product)&&colorKey(v.color)===colorKey(x.color)).sort((a,b)=>String(a.size).localeCompare(String(b.size),'ru',{numeric:true}));
       const attrs=' data-b="'+i+'" data-j="'+j+'" ';
       const selected=choices.some(v=>v.barcode===x.barcode);

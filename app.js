@@ -4,7 +4,7 @@ const blank={version:1,catalog:[],aliases:{},settings:{},format:{}};
 let db=JSON.parse(localStorage.getItem('true-post-v1')||JSON.stringify(blank)),boxes=[];
 function save(next){localStorage.setItem('true-post-v1',JSON.stringify(next));db=next;stats()}
 let catalogIndex;
-function stats(){catalogIndex=createCatalogIndex(db.catalog);catalogIndex.names=new Set([...Object.keys(db.aliases),...db.catalog.map(x=>x.product)].map(norm));showDirectory();$('products').innerHTML=[...new Set(db.catalog.map(x=>x.product))].map(v=>'<option value="'+esc(v)+'">').join('')}
+function stats(){catalogIndex=createCatalogIndex(db.catalog);catalogIndex.names=new Set([...Object.keys(warehouseProducts),...Object.keys(db.aliases),...db.catalog.map(x=>x.product)].map(norm));showDirectory();$('products').innerHTML=[...new Set(db.catalog.map(x=>x.product))].map(v=>'<option value="'+esc(v)+'">').join('')}
 function msg(v){
   $('status').textContent='';
   $('wbStatus').textContent='';
