@@ -7,3 +7,5 @@ document.querySelectorAll('input[type=file]').forEach(input=>{
  input.addEventListener('change',()=>caption.lastElementChild.textContent=Array.from(input.files,f=>f.name).join(', '));
 });
 
+
+document.querySelectorAll('[data-icon]').forEach(el=>{el.innerHTML=icon(el.dataset.icon)});
