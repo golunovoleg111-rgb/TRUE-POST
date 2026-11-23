@@ -4,6 +4,7 @@ document.querySelectorAll('nav button').forEach((b,i)=>{b.title=b.textContent;b.
 document.querySelectorAll('input[type=file]').forEach(input=>{
  const wrapper=document.createElement('span');wrapper.className='file-control';input.before(wrapper);wrapper.append(input);
  const caption=document.createElement('span');caption.className='file-caption';caption.innerHTML=icon('upload')+'<strong>Выбрать '+(input.multiple?'файлы':'файл')+'</strong><span></span>';wrapper.append(caption);
+ if(input.dataset.fileCaption)caption.querySelector('strong').textContent=input.dataset.fileCaption;
  input.addEventListener('change',()=>caption.lastElementChild.textContent=Array.from(input.files,f=>f.name).join(', '));
 });
 
