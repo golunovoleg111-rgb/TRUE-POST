@@ -1,18 +1,6 @@
-let assignedBoxRows=null;
-let boxCodeRequest=0;
 let assemblyBoxCodes=null;
 let assemblyCodeRequest=0;
 let pendingAssemblyBatch=null;
-
-function resetBoxCodes() {
-  boxCodeRequest++;
-  assignedBoxRows=null;
-  $('boxCodes').value='';
-  const filename=$('boxCodes').parentElement.querySelector('.file-caption span');
-  if(filename)filename.textContent='';
-  $('boxCodesStatus').textContent='';
-  $('downloadAssigned').hidden=true;
-}
 
 async function loadBoxCodes(file) {
   let rows;
@@ -75,49 +63,14 @@ function placeBoxCodes(rows,codes) {
   return {placed,mixCount};
 }
 
-$('assembled').addEventListener('change',resetBoxCodes);
 $('review').addEventListener('input',e=>{
   if(!e.target.dataset.k)return;
-  if(!$('assembled').files.length&&!shared)resetBoxCodes();
   resetAssemblyBoxCodes();
 });
 $('review').addEventListener('click',e=>{
   if(!e.target.matches('[data-add],[data-remove]'))return;
-  if(!$('assembled').files.length&&!shared)resetBoxCodes();
   resetAssemblyBoxCodes();
 });
-$('boxCodes').addEventListener('change',async e=>{
-  const file=e.target.files[0];
-  if(!file)return;
-  const request=++boxCodeRequest;
-  const status=$('boxCodesStatus');
-  status.textContent='Расставляю ШК…';
-  try {
-    const fromCurrent=!$('assembled').files.length&&!shared&&boxes.length;
-    const [rows,codes]=await Promise.all([fromCurrent?readAssembly(assemblyRows(false)):readImportedSource(),loadBoxCodes(file)]);
-    const {placed,mixCount}=placeBoxCodes(rows,codes);
-    if(request!==boxCodeRequest)return;
-    assignedBoxRows=placed;
-    $('downloadAssigned').hidden=false;
-    status.textContent='Готово. Заполнено коробок: '+codes.length+', из них миксов: '+mixCount+'.';
-  }catch(err){
-    if(request!==boxCodeRequest)return;
-    status.textContent=err.message+(assignedBoxRows?' Сохранена предыдущая расстановка ШК.':'');
-    $('boxCodes').value='';
-  }
-});
-
-on('downloadAssigned',()=>{
-  if(!assignedBoxRows)return;
-  const rows=[assemblyHeader];
-  let previous;
-  for(const item of assignedBoxRows) {
-    if(item.p!==previous){rows.push([item.p]);previous=item.p}
-    rows.push([item.barcode,item.qty,item.shk,item.color,item.size,item.product,item.no]);
-  }
-  return writeBook('Сборочный со ШК.xlsx',rows,true);
-});
-
 function resetAssemblyBoxCodes() {
   assemblyCodeRequest++;
   assemblyBoxCodes=null;
