@@ -1,0 +1,85 @@
+:root {
+  --canvas:#f6effc;
+  --ink:#302044;
+  --accent:#713bb0;
+  --forest:#47276c;
+  --line:#dfcdec;
+  --guide-border:#e3d4f0;
+  --glass:rgba(255,255,255,.68);
+}
+body {
+  background:
+    radial-gradient(ellipse at 93% 5%,#ffcce8 0,transparent 42%),
+    radial-gradient(ellipse at 16% 80%,#ddc6fc 0,transparent 47%),
+    radial-gradient(ellipse at 62% 85%,#fce0f0 0,transparent 46%),
+    var(--canvas);
+  background-attachment:fixed;
+  color:var(--ink);
+}
+p,.help ol,#review small{color:#5e496f}
+header,nav{background:rgba(62,24,95,.91);backdrop-filter:blur(22px) saturate(145%)}
+header b{color:#fbbde4}
+nav button{color:#f6ebff}
+nav button.active{background:linear-gradient(110deg,#ebd9ff,#ffdbef);color:#482368}
+nav button:hover:not(.active){background:#ffffff1c}
+main>section{
+  background:var(--glass);
+  border:1px solid #fff;
+  box-shadow:inset 0 1px 0 #fff,0 18px 48px #5828791a;
+  backdrop-filter:blur(24px) saturate(140%);
+}
+.page-intro{
+  background:linear-gradient(115deg,#e9d9fdba,#fcd7ecad);
+  border-color:#ffffffda;
+  box-shadow:inset 0 1px 0 #fff;
+}
+.wb-source,.help,.export-card,.file-caption{
+  background:rgba(255,255,255,.55);
+  border-color:#decaee;
+  box-shadow:inset 0 1px 0 #fff,0 6px 18px #5828790c;
+}
+.wb-source .file-caption{background:#f9efff}
+.help summary,.export-card .requirement,.file-caption,.format{color:#633482}
+.step,.card-top [data-icon],.table-scroll th{
+  background:linear-gradient(120deg,#ebdcff,#f9def0);
+  color:#673590;
+}
+.format{border-color:#e0cfea;border-radius:999px}
+input,textarea,select{border-color:#d7c1e7;border-radius:13px;background:#fffc}
+button,nav button,.file-caption{
+  border-radius:999px;
+}
+button{
+  background:linear-gradient(110deg,#6632a2,#a23885);
+  box-shadow:inset 0 1px 0 #ffffff40,0 4px 10px #632d941d;
+}
+button:hover:not(:disabled):not(nav button){filter:brightness(1.08)}
+nav button,.pager button,.minor{box-shadow:none}
+.pager button,.minor{background:#ecdef7;color:#633482}
+button:focus-visible,summary:focus-visible,.file-control:focus-within .file-caption{outline-color:#9147b6}
+#review summary:before{border-color:#884eab}
+#review pre{background:#f4eafa}
+.load-state:not([hidden]){
+  display:flex;align-items:center;gap:12px;
+  margin:14px 0 6px;padding:12px 15px;
+  border:1px solid #fff;border-radius:16px;
+  background:linear-gradient(110deg,#eee0ffbb,#fce0f1bb);
+  color:#653586;font-size:.9rem;font-weight:600;
+}
+.load-ring{
+  flex:none;width:23px;height:23px;border:3px solid #b476ca50;
+  border-top-color:#853fbc;border-right-color:#c64d90;border-radius:50%;
+  animation:layout-spin .9s linear infinite;
+}
+.load-track{flex:1;height:5px;position:relative;overflow:hidden;border-radius:999px;background:#b476ca27}
+.load-track::after{
+  content:"";position:absolute;inset:0 auto 0 0;width:45%;border-radius:inherit;
+  background:linear-gradient(90deg,#8b4bc0,#d768a8);
+  animation:layout-sweep 1.45s ease-in-out infinite alternate;
+}
+@keyframes layout-spin{to{transform:rotate(360deg)}}
+@keyframes layout-sweep{from{transform:translateX(-40%)}to{transform:translateX(175%)}}
+@media(prefers-reduced-motion:reduce){
+  .load-ring,.load-track::after{animation:none}
+}
+

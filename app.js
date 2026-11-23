@@ -63,6 +63,7 @@ on('parse', async()=>{
   const show=t=>status.textContent=t;
   try {
     if(!urls.length&&!files.length)fail('Вставьте ссылку или выберите XLSX.');
+    $('layoutLoading').hidden=false;
     for(const [i,raw] of urls.entries()){
       const url=new URL(raw), id=url.pathname.match(/^\/spreadsheets\/d\/([\w-]+)/)?.[1];
       if(url.hostname!=='docs.google.com'||!id)fail('Нужна ссылка на Google Таблицу.');
@@ -88,7 +89,7 @@ on('parse', async()=>{
       const items=decode(b.raw), incomplete=items.some(x=>!x.size||!x.qty);
       return {...b,items,incomplete,manual:Boolean(b.comment)||incomplete};
     });review();show('Найдено коробок: '+boxes.length);
-  }catch(err){show(err.message)}finally{button.disabled=false}
+  }catch(err){show(err.message)}finally{button.disabled=false;$('layoutLoading').hidden=true}
 });
 function review(){reviewContents();
 on('assembly',()=>writeBook('Сборочный.xlsx',assemblyRows(),true));on('direct',()=>templateFile(flat()));on('share',async()=>{const rows=assemblyRows();const bytes=new Uint8Array(await new Response(new Blob([JSON.stringify(rows)]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());const hash=btoa(Array.from(bytes,b=>String.fromCharCode(b)).join(''));const u=location.href.split('#')[0]+'#assembly='+hash;$('linkout').innerHTML='<label>Ссылка с копией задания для сборки<input readonly value="'+esc(u)+'"></label>';$('linkout').querySelector('input').select();try{await navigator.clipboard.writeText(u);msg('Ссылка скопирована')}catch{msg('Скопируйте выделенную ссылку')}})}
