@@ -2,6 +2,7 @@ let assignedBoxRows=null;
 let boxCodeRequest=0;
 let assemblyBoxCodes=null;
 let assemblyCodeRequest=0;
+let pendingAssemblyBatch=null;
 
 function resetBoxCodes() {
   boxCodeRequest++;
@@ -120,6 +121,7 @@ on('downloadAssigned',()=>{
 function resetAssemblyBoxCodes() {
   assemblyCodeRequest++;
   assemblyBoxCodes=null;
+  clearAssemblyBatch();
   const input=$('assemblyBoxCodes');
   input.value='';
   const filename=input.parentElement.querySelector('.file-caption span');
@@ -129,20 +131,72 @@ function resetAssemblyBoxCodes() {
   if(downloadButton)downloadButton.textContent='Скачать сборочный XLSX';
 }
 
+function clearAssemblyBatch() {
+  pendingAssemblyBatch=null;
+  $('assemblyBatch').hidden=true;
+  $('assemblyBatchStart').value='';
+  $('assemblyBatchPreview').textContent='';
+}
+
+function applyAssemblyCodes(rows,codes,previous=new Map()) {
+  const {placed,mixCount}=placeBoxCodes(rows,codes);
+  const next=new Map(previous);
+  const owners=new Map([...next].map(([box,code])=>[code,box]));
+  for(const row of placed){
+    const box=String(row.no), existing=next.get(box), owner=owners.get(row.shk);
+    if(existing&&existing!==row.shk)fail('У коробки №'+box+' уже есть другой ШК. Проверьте начальный номер.');
+    if(owner&&owner!==box)fail('ШК '+row.shk+' уже назначен коробке №'+owner+'.');
+    owners.set(row.shk,box);
+    next.set(box,row.shk);
+  }
+  assemblyBoxCodes=next;
+  $('assembly').textContent='Скачать сборочный со ШК';
+  $('assemblyBoxCodesStatus').textContent='Заполнено коробок: '+next.size+' из '+boxes.length+'. '+(next.size===boxes.length?'Все ШК проставлены.':'Осталось заполнить: '+(boxes.length-next.size)+'.')+' В этом списке миксов: '+mixCount+'.';
+  clearAssemblyBatch();
+}
+
+function selectedBatchRange() {
+  if(!pendingAssemblyBatch)return null;
+  const start=Number($('assemblyBatchStart').value);
+  const end=start+pendingAssemblyBatch.codes.length-1;
+  if(!Number.isInteger(start)||start<1||end>pendingAssemblyBatch.total)return null;
+  return {start,end};
+}
+
+$('assemblyBatchStart').addEventListener('input',()=>{
+  const range=selectedBatchRange();
+  $('assemblyBatchApply').disabled=!range;
+  $('assemblyBatchPreview').textContent=range?'Коробки №'+range.start+'–'+range.end+' по порядку сборки. Палеты: '+boxes[range.start-1].p+' → '+boxes[range.end-1].p+'.':'Укажите начальный номер коробки в допустимом диапазоне.';
+});
+$('assemblyBatch').addEventListener('submit',e=>{
+  e.preventDefault();
+  const range=selectedBatchRange();
+  if(!range)return;
+  const {rows,codes}=pendingAssemblyBatch;
+  const batchRows=rows.filter(row=>Number(row.no)>=range.start&&Number(row.no)<=range.end);
+  try {applyAssemblyCodes(batchRows,codes,assemblyBoxCodes||new Map())}
+  catch(err){$('assemblyBoxCodesStatus').textContent=err.message}
+});
+
 $('assemblyBoxCodes').addEventListener('change',async e=>{
   const file=e.target.files[0];
   if(!file)return;
   const request=++assemblyCodeRequest;
   const status=$('assemblyBoxCodesStatus');
+  clearAssemblyBatch();
   status.textContent='Расставляю ШК…';
   try {
     const rows=readAssembly(assemblyRows(false));
     const codes=await loadBoxCodes(file);
     if(request!==assemblyCodeRequest)return;
-    const {placed,mixCount}=placeBoxCodes(rows,codes);
-    assemblyBoxCodes=new Map(placed.map(row=>[String(row.no),row.shk]));
-    $('assembly').textContent='Скачать сборочный со ШК';
-    status.textContent='Готово. Заполнено коробок: '+codes.length+', из них миксов: '+mixCount+'.';
+    const total=boxes.length;
+    if(codes.length>total)fail('В сборке '+total+' коробок, а в списке '+codes.length+' ШК. Уберите лишние коды.');
+    if(codes.length===total){applyAssemblyCodes(rows,codes);return}
+    pendingAssemblyBatch={rows,codes,total};
+    $('assemblyBatchStart').max=total-codes.length+1;
+    $('assemblyBatchApply').disabled=true;
+    $('assemblyBatch').hidden=false;
+    status.textContent='В сборке '+total+' коробок, в списке '+codes.length+' ШК. Выберите, с какой коробки начать.';
   }catch(err){
     if(request!==assemblyCodeRequest)return;
     status.textContent=err.message+(assemblyBoxCodes?' Сохранена предыдущая расстановка ШК.':'');
