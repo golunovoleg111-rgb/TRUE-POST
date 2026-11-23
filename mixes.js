@@ -4,17 +4,25 @@ const colorAliases = new Map([
   ['бел','белый'], ['крас','красный'], ['мол','молочный'],
   ['роз','розовый'], ['чер','черный'], ['черное','черный'],
   ['синие','синий'], ['голубые','голубой'],
+  ['фисташка','фисташковый'],
   ['коринчевый','коричневый'],
 ]);
 
 const warehouseProducts = {
   'квж№1':'21_К_Вельвет',
+  'квж№2':'29_К_Вельвет№2',
   'кзж№1':'216_К_Замша_№1',
   'кбж№1':'211_КБрюки_жилет',
+  'твид№2':'227_К_Твид_№2',
+  'влк':'24_К_Велюр',
+  'квж_пю':'218_К_Вельвет_ПЮ',
+  'б№5':'1_Б_№5_Теплые',
+  'спорт':'228_К_спорт',
 };
+const productAliasKey=value=>norm(value).replace(/\s*№\s*/g,'№');
 function mappedProduct(product) {
-  const key=norm(product);
-  return db.aliases[key] || (Object.hasOwn(warehouseProducts,key) ? warehouseProducts[key] : product);
+  const key=productAliasKey(product);
+  return catalogIndex.aliases.get(key) || product;
 }
 
 function colorKey(value) {
@@ -44,7 +52,7 @@ function decode(raw) {
     const words=line.split(/\s+/);
     let head='';
     for(let count=words.length;count>0;count--){
-      const key=norm(words.slice(0,count).join(' '));
+      const key=productAliasKey(words.slice(0,count).join(' '));
       if(catalogIndex.names.has(key)){head=words.splice(0,count).join(' ');break}
     }
     if(!product&&!head&&words.length>1&&/^[а-я]+(?:№\d+|\d+)$/i.test(words[0]))head=words.shift();
