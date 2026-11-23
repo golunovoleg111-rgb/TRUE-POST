@@ -1,5 +1,5 @@
 const parseXml = text => new DOMParser().parseFromString(text,'application/xml');
-async function readLayout(buffer, label) {
+async function readLayout(buffer, label, selectedColor='FFFF00') {
   const zip=await JSZip.loadAsync(buffer);
   async function xml(path){const f=zip.file(path); if(!f)throw Error('В XLSX отсутствует '+path);return parseXml(await f.async('string'))}
   const book=await xml('xl/workbook.xml'), rels=await xml('xl/_rels/workbook.xml.rels');
@@ -10,8 +10,27 @@ async function readLayout(buffer, label) {
   const path=new URL(target,'https://xlsx.local/xl/workbook.xml').pathname.slice(1);
   const styles=await xml('xl/styles.xml');
   const children=name=>Array.from(styles.getElementsByTagNameNS('*',name)[0].children);
-  const fills=children('fills').map(f=>{const color=f.getElementsByTagNameNS('*','fgColor')[0];return color?.getAttribute('rgb')?.slice(-6).toUpperCase()==='FFFF00'||['5','13'].includes(color?.getAttribute('indexed'))});
-  const yellow=children('cellXfs').map(f=>fills[Number(f.getAttribute('fillId'))]);
+  const basicPalette=['000000','FFFFFF','FF0000','00FF00','0000FF','FFFF00','FF00FF','00FFFF'];
+  const palette=Array.from(styles.getElementsByTagNameNS('*','rgbColor'),color=>color.getAttribute('rgb')?.slice(-6).toUpperCase());
+  const themeNames=['lt1','dk1','lt2','dk2','accent1','accent2','accent3','accent4','accent5','accent6','hlink','folHlink'];
+  const theme=zip.file('xl/theme/theme1.xml')?await xml('xl/theme/theme1.xml'):null;
+  const scheme=theme?.getElementsByTagNameNS('*','clrScheme')[0];
+  const themePalette=themeNames.map(name=>{
+    const color=scheme?.getElementsByTagNameNS('*',name)[0]?.firstElementChild;
+    return (color?.getAttribute('lastClr')||color?.getAttribute('val'))?.toUpperCase();
+  });
+  const fills=children('fills').map(fill=>{
+    const pattern=fill.getElementsByTagNameNS('*','patternFill')[0];
+    if(pattern?.getAttribute('patternType')!=='solid')return false;
+    const color=pattern.getElementsByTagNameNS('*','fgColor')[0];
+    if(!color||Number(color.getAttribute('tint')))return false;
+    const rgb=color.getAttribute('rgb')?.slice(-6).toUpperCase();
+    const index=color.getAttribute('indexed');
+    const themeIndex=color.getAttribute('theme');
+    const resolved=rgb||(index!==null?(palette[index]||(+index<16?basicPalette[index%8]:undefined)):themePalette[themeIndex]);
+    return resolved===selectedColor;
+  });
+  const matchingFill=children('cellXfs').map(f=>fills[Number(f.getAttribute('fillId'))]);
   const strings=zip.file('xl/sharedStrings.xml')?Array.from((await xml('xl/sharedStrings.xml')).getElementsByTagNameNS('*','si'),s=>Array.from(s.getElementsByTagNameNS('*','t'),t=>t.textContent).join('')):[];
   const raw=await zip.file(path).async('string'), headers=new Map(), boxes=[];
   const attr=(s,k)=>s.match(new RegExp('\\s'+k+'="([^"]*)"'))?.[1];
@@ -23,7 +42,7 @@ async function readLayout(buffer, label) {
     const i=a.match(/^([A-Z]+)(\d+)$/), col=[...i[1]].reduce((n,c)=>26*n+c.charCodeAt(0)-64,0), row=+i[2];
     const h=value.match(/^(?:пал+ет[аы]?\s*)?№\s*(\d+)(?:\s*(?:[-–].*|\([^)]*\)))?$/i);
     if(h||/^(?:б\/н(?:\s|$)|№?\s*\?$)/i.test(value)){for(let c=col;c<col+4;c++)headers.set(c,{row,n:h?.[1]||value});continue}
-    if(yellow[+(attr(m[1],'s')||0)])boxes.push({p:headers.get(col)?.row<row?headers.get(col).n:'Уточнить ('+a+')',id:label+'!'+a,raw:value});
+    if(matchingFill[+(attr(m[1],'s')||0)])boxes.push({p:headers.get(col)?.row<row?headers.get(col).n:'Уточнить ('+a+')',id:label+'!'+a,raw:value});
   }
   const relPath=path.replace(/([^/]+)$/, '_rels/$1.rels');
   if(zip.file(relPath)){

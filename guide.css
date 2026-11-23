@@ -58,4 +58,10 @@ button:focus-visible,summary:focus-visible{outline:2px solid #317857;outline-off
   .wb-source h2,.wb-choose{font-size:1rem}
   .step{flex:none}
 }
-
+#layoutColors:not(:empty){display:grid;gap:8px;margin:12px 0 16px}
+.layout-color-row{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:end;padding:10px 12px;border:1px solid var(--guide-border);border-radius:12px;background:#ffffff55}
+.layout-source-name{flex:1 1 190px;min-width:0;overflow-wrap:anywhere;align-self:center;font-weight:650}
+.layout-source-name small{display:block;font-weight:400;color:#5e496f}
+.layout-color-row label{margin:0;font-size:.85rem}
+.layout-color-row input[type=color]{width:48px;height:43px;padding:3px}
+#parseStatus{white-space:pre-line}

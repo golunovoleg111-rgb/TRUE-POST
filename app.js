@@ -54,18 +54,24 @@ on('catalog',async()=>{const w=await fileBook($('catalog'));function choose(i){c
 on('alias',e=>{const f=e.target.elements;save({...db,aliases:{...db.aliases,[norm(f.abbr.value)]:f.product.value.trim()}});e.target.reset()},'submit');
 on('backup',()=>download('true-post.json',JSON.stringify(db,null,2),'application/json'));
 on('restore',async()=>{const d=JSON.parse(await $('restore').files[0].text());if(d.version!==1||!Array.isArray(d.catalog)||!d.catalog.every(v=>v&&['barcode','product','color','size'].every(k=>typeof v[k]==='string'&&v[k]))||![d.aliases,d.settings,d.format].every(o=>o&&typeof o==='object'&&!Array.isArray(o))||!Object.values(d.aliases).every(v=>typeof v==='string'))fail('Несовместимая база');if(confirm('Заменить текущую базу данными из файла?'))save(d)},'change');
-function extract(s,source){const headers=[],yellow=[];s.eachRow(row=>row.eachCell(cell=>{if(cell.isMerged&&cell.master.address!==cell.address)return;const v=cell.text.trim();if(!v)return;const m=v.match(/^(?:пал+ет[аы]?\s*)?№\s*(\d+)(?:\s*[-–].*)?$/i);if(m)headers.push({r:cell.row,c:cell.col,n:m[1]});else if(cell.fill?.fgColor?.argb?.slice(-6).toUpperCase()==='FFFF00')yellow.push(cell)}));return yellow.map(cell=>{const h=headers.filter(h=>h.r<cell.row&&h.c<=cell.col&&cell.col<h.c+4).sort((a,b)=>b.r-a.r)[0];if(!h)fail(source+' '+cell.address+' — не найден номер палеты');return {p:h.n,id:source+'!'+cell.address,raw:cell.text}})}
 on('parse', async()=>{
   const button=$('parse'), status=$('parseStatus'), result=[];
-  const urls=$('urls').value.split(/\n/).map(x=>x.trim()).filter(Boolean);
-  const files=[...$('layouts').files];
+  const sources=layoutSources().map(source=>({...source,fill:sourceFill(source)}));
+  const urls=sources.filter(source=>source.url), files=sources.filter(source=>source.file);
+  const counts=[];
+  async function collect(buffer,source){
+    const records=await readLayout(buffer,source.label,source.fill);
+    result.push(...records);
+    const color=fillOptions.find(([value])=>value===source.fill)?.[1]||'#'+source.fill;
+    counts.push(source.label+' · '+color+' · коробок: '+records.length);
+  }
   button.disabled=true; resetAssemblyBoxCodes(); $('assemblyBoxCodesPanel').hidden=true; boxes=[]; $('review').replaceChildren();
   const show=t=>status.textContent=t;
   try {
     if(!urls.length&&!files.length)fail('Вставьте ссылку или выберите XLSX.');
     $('layoutLoading').hidden=false;
-    for(const [i,raw] of urls.entries()){
-      const url=new URL(raw), id=url.pathname.match(/^\/spreadsheets\/d\/([\w-]+)/)?.[1];
+    for(const [i,source] of urls.entries()){
+      const url=new URL(source.url), id=url.pathname.match(/^\/spreadsheets\/d\/([\w-]+)/)?.[1];
       if(url.hostname!=='docs.google.com'||!id)fail('Нужна ссылка на Google Таблицу.');
       const gid=new URLSearchParams(url.hash.slice(1)).get('gid')||url.searchParams.get('gid');
       const link='https://docs.google.com/spreadsheets/d/'+id+'/export?format=xlsx'+(gid?'&gid='+encodeURIComponent(gid):'');
@@ -79,16 +85,16 @@ on('parse', async()=>{
         buffer=await new Blob(chunks).arrayBuffer();
         if(new Uint8Array(buffer)[0]!==80)throw Error();
       }catch{show('Браузер не смог скачать склад. Откройте XLSX по ссылке, выберите скачанный файл и уберите ссылку из поля. ');const a=document.createElement('a');a.href=link;a.textContent='Скачать расстановку';status.append(a);return}
-      show('Ищу жёлтые коробки на складе '+(i+1)+'…');
-      result.push(...await readLayout(buffer,'Склад '+(i+1)));
+      show('Ищу коробки выбранного цвета · '+source.label+'…');
+      await collect(buffer,source);
     }
-    for(const f of files){show('Читаю '+f.name+'…');result.push(...await readLayout(await f.arrayBuffer(),f.name))}
-    if(!result.length)fail('На выбранных листах нет заполненных ярко-жёлтых коробок.');
+    for(const source of files){show('Читаю '+source.label+'…');await collect(await source.file.arrayBuffer(),source)}
+    if(!result.length)fail('На выбранных листах нет коробок с указанной заливкой.\n'+counts.join('\n'));
     showReady=false;
     boxes=result.map(b=>{
       const items=decode(b.raw), incomplete=items.some(x=>!x.size||!x.qty);
       return {...b,items,incomplete,manual:Boolean(b.comment)||incomplete};
-    });$('assemblyBoxCodesPanel').hidden=false;review();show('Найдено коробок: '+boxes.length);
+    });$('assemblyBoxCodesPanel').hidden=false;review();show('Найдено коробок: '+boxes.length+'\n'+counts.join('\n'));
   }catch(err){show(err.message)}finally{button.disabled=false;$('layoutLoading').hidden=true}
 });
 function review(){reviewContents();
