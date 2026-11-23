@@ -65,7 +65,7 @@ function needsCheck(box){return box.manual||!box.items.every(validItem)}
 let showReady=false;
 function reviewContents(){
   const incomplete=boxes.filter(needsCheck).length;
-  const controls='<div class="actions"><button id="assembly">Скачать сборочный XLSX</button><button id="share">Создать ссылку на таблицу</button><button id="direct">Скачать Template</button></div><div id="linkout"></div>';
+  const controls='<div class="actions"><button id="assembly">'+(assemblyBoxCodes?'Скачать сборочный со ШК':'Скачать сборочный XLSX')+'</button><button id="share">Создать ссылку на таблицу</button><button id="direct">Скачать Template</button></div><div id="linkout"></div>';
   const html=boxes.map((b,i)=>{
     if(!showReady&&!needsCheck(b))return '';
     const rows=b.items.map((x,j)=>{

@@ -1,5 +1,7 @@
 let assignedBoxRows=null;
 let boxCodeRequest=0;
+let assemblyBoxCodes=null;
+let assemblyCodeRequest=0;
 
 function resetBoxCodes() {
   boxCodeRequest++;
@@ -74,10 +76,14 @@ function placeBoxCodes(rows,codes) {
 
 $('assembled').addEventListener('change',resetBoxCodes);
 $('review').addEventListener('input',e=>{
-  if(e.target.dataset.k&&!$('assembled').files.length&&!shared)resetBoxCodes();
+  if(!e.target.dataset.k)return;
+  if(!$('assembled').files.length&&!shared)resetBoxCodes();
+  resetAssemblyBoxCodes();
 });
 $('review').addEventListener('click',e=>{
-  if(e.target.matches('[data-add],[data-remove]')&&!$('assembled').files.length&&!shared)resetBoxCodes();
+  if(!e.target.matches('[data-add],[data-remove]'))return;
+  if(!$('assembled').files.length&&!shared)resetBoxCodes();
+  resetAssemblyBoxCodes();
 });
 $('boxCodes').addEventListener('change',async e=>{
   const file=e.target.files[0];
@@ -87,7 +93,7 @@ $('boxCodes').addEventListener('change',async e=>{
   status.textContent='Расставляю ШК…';
   try {
     const fromCurrent=!$('assembled').files.length&&!shared&&boxes.length;
-    const [rows,codes]=await Promise.all([fromCurrent?readAssembly(assemblyRows()):readImportedSource(),loadBoxCodes(file)]);
+    const [rows,codes]=await Promise.all([fromCurrent?readAssembly(assemblyRows(false)):readImportedSource(),loadBoxCodes(file)]);
     const {placed,mixCount}=placeBoxCodes(rows,codes);
     if(request!==boxCodeRequest)return;
     assignedBoxRows=placed;
@@ -111,3 +117,35 @@ on('downloadAssigned',()=>{
   return writeBook('Сборочный со ШК.xlsx',rows,true);
 });
 
+function resetAssemblyBoxCodes() {
+  assemblyCodeRequest++;
+  assemblyBoxCodes=null;
+  const input=$('assemblyBoxCodes');
+  input.value='';
+  const filename=input.parentElement.querySelector('.file-caption span');
+  if(filename)filename.textContent='';
+  $('assemblyBoxCodesStatus').textContent='';
+  const downloadButton=$('assembly');
+  if(downloadButton)downloadButton.textContent='Скачать сборочный XLSX';
+}
+
+$('assemblyBoxCodes').addEventListener('change',async e=>{
+  const file=e.target.files[0];
+  if(!file)return;
+  const request=++assemblyCodeRequest;
+  const status=$('assemblyBoxCodesStatus');
+  status.textContent='Расставляю ШК…';
+  try {
+    const rows=readAssembly(assemblyRows(false));
+    const codes=await loadBoxCodes(file);
+    if(request!==assemblyCodeRequest)return;
+    const {placed,mixCount}=placeBoxCodes(rows,codes);
+    assemblyBoxCodes=new Map(placed.map(row=>[String(row.no),row.shk]));
+    $('assembly').textContent='Скачать сборочный со ШК';
+    status.textContent='Готово. Заполнено коробок: '+codes.length+', из них миксов: '+mixCount+'.';
+  }catch(err){
+    if(request!==assemblyCodeRequest)return;
+    status.textContent=err.message+(assemblyBoxCodes?' Сохранена предыдущая расстановка ШК.':'');
+    e.target.value='';
+  }
+});

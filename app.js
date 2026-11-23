@@ -59,7 +59,7 @@ on('parse', async()=>{
   const button=$('parse'), status=$('parseStatus'), result=[];
   const urls=$('urls').value.split(/\n/).map(x=>x.trim()).filter(Boolean);
   const files=[...$('layouts').files];
-  button.disabled=true; if(!$('assembled').files.length&&!shared)resetBoxCodes(); boxes=[]; $('review').replaceChildren();
+  button.disabled=true; resetAssemblyBoxCodes(); $('assemblyBoxCodesPanel').hidden=true; if(!$('assembled').files.length&&!shared)resetBoxCodes(); boxes=[]; $('review').replaceChildren();
   const show=t=>status.textContent=t;
   try {
     if(!urls.length&&!files.length)fail('Вставьте ссылку или выберите XLSX.');
@@ -88,17 +88,17 @@ on('parse', async()=>{
     boxes=result.map(b=>{
       const items=decode(b.raw), incomplete=items.some(x=>!x.size||!x.qty);
       return {...b,items,incomplete,manual:Boolean(b.comment)||incomplete};
-    });review();show('Найдено коробок: '+boxes.length);
+    });$('assemblyBoxCodesPanel').hidden=false;review();show('Найдено коробок: '+boxes.length);
   }catch(err){show(err.message)}finally{button.disabled=false;$('layoutLoading').hidden=true}
 });
 function review(){reviewContents();
-on('assembly',()=>writeBook('Сборочный.xlsx',assemblyRows(),true));on('direct',()=>templateFile(flat()));on('share',async()=>{const rows=assemblyRows();const bytes=new Uint8Array(await new Response(new Blob([JSON.stringify(rows)]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());const hash=btoa(Array.from(bytes,b=>String.fromCharCode(b)).join(''));const u=location.href.split('#')[0]+'#assembly='+hash;$('linkout').innerHTML='<label>Ссылка с копией задания для сборки<input readonly value="'+esc(u)+'"></label>';$('linkout').querySelector('input').select();try{await navigator.clipboard.writeText(u);msg('Ссылка скопирована')}catch{msg('Скопируйте выделенную ссылку')}})}
+on('assembly',()=>writeBook(assemblyBoxCodes?'Сборочный со ШК.xlsx':'Сборочный.xlsx',assemblyRows(),true));on('direct',()=>templateFile(flat()));on('share',async()=>{const rows=assemblyRows();const bytes=new Uint8Array(await new Response(new Blob([JSON.stringify(rows)]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());const hash=btoa(Array.from(bytes,b=>String.fromCharCode(b)).join(''));const u=location.href.split('#')[0]+'#assembly='+hash;$('linkout').innerHTML='<label>Ссылка с копией задания для сборки<input readonly value="'+esc(u)+'"></label>';$('linkout').querySelector('input').select();try{await navigator.clipboard.writeText(u);msg('Ссылка скопирована')}catch{msg('Скопируйте выделенную ссылку')}})}
 function flat(){const index=boxes.findIndex(b=>b.manual);if(index>=0)fail("Подтвердите содержимое коробки "+(index+1));return boxes.flatMap((b,i)=>b.items.map(x=>{const c=catalogIndex.barcodes.get(x.barcode);if(!c||!Number.isSafeInteger(x.qty)||x.qty<1)fail('Проверьте баркод и количество в коробке '+(i+1));return {...c,qty:x.qty,p:b.p,no:i+1,shk:''}}))}
 const assemblyHeader=['Баркод товара','Кол-во товаров','ШК короба','Цвет','Размер','Изделие'];
-function assemblyRows(){const rows=[assemblyHeader];let prev;for(const x of flat()){if(prev!==x.p){rows.push([x.p]);prev=x.p}rows.push([x.barcode,x.qty,'',x.color,x.size,x.product,x.no])}return rows}
+function assemblyRows(includeCodes=true){const rows=[assemblyHeader];let prev;for(const x of flat()){if(prev!==x.p){rows.push([x.p]);prev=x.p}rows.push([x.barcode,x.qty,includeCodes?assemblyBoxCodes?.get(String(x.no))||'':'',x.color,x.size,x.product,x.no])}return rows}
 function readAssembly(rows){let p='';const out=[];for(const r of rows.slice(1)){if(!r.some(Boolean))continue;if(!r[1]&&r[0]){p=r[0];continue}const [barcode,qty,shk,color,size,product,no]=r;if(!barcode||!Number.isSafeInteger(+qty)||+qty<1)fail('Некорректная строка для баркода '+barcode);out.push({barcode:String(barcode),qty:+qty,shk:String(shk||'').trim(),p:String(p),color,size,product:product||catalogIndex.barcodes.get(String(barcode))?.product||'',no})}if(!out.length)fail('Нет товарных строк');return out}
 let shared=null;
-async function imported(){return assignedBoxRows?assignedBoxRows.map(row=>({...row})):readImportedSource()}
+async function imported(){if(assignedBoxRows)return assignedBoxRows.map(row=>({...row}));if(!$('assembled').files.length&&!shared&&assemblyBoxCodes)return readAssembly(assemblyRows());return readImportedSource()}
 async function readImportedSource(){if(shared&&!$('assembled').files.length)return readAssembly(shared);const w=await fileBook($('assembled'));const sheet=w.worksheets[0],rows=grid(sheet);let i=0;sheet.eachRow(row=>{const values=rows[i++],note=row.getCell(1).note;const box=typeof note==='string'?note.match(/^WB-box:(\d+)$/)?.[1]:undefined;if(box&&!values[6])values[6]=box});if(!/баркод/i.test(rows[0]?.[0]))fail('Первая колонка должна содержать баркод');return readAssembly(rows)}
 function checked(rows){const byBox=new Map(),byCode=new Map();for(const x of rows){const key=x.no?JSON.stringify([x.p,String(x.no)]):null;if(key&&x.shk){if(byBox.has(key)&&byBox.get(key)!==x.shk)fail('В коробке '+x.no+' разные ШК');byBox.set(key,x.shk)}}for(const x of rows){const key=x.no?JSON.stringify([x.p,String(x.no)]):null;x.shk=x.shk||(key&&byBox.get(key));if(!x.shk)fail('Заполните ШК короба для '+x.barcode);const owner=key||x.p;if(byCode.has(x.shk)&&byCode.get(x.shk)!==owner)fail('ШК '+x.shk+' назначен разным коробкам');byCode.set(x.shk,owner)}return rows}
 async function templateFile(items){const m=new Map();for(const x of items)m.set(x.barcode,(m.get(x.barcode)||0)+x.qty);await writeBook('template.xlsx',[['Баркод','Количество'],...m])}
