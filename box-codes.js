@@ -8,14 +8,30 @@ async function loadBoxCodes(file) {
     const sheet=(await workbook(await file.arrayBuffer())).worksheets[0];
     if(!sheet)fail('В файле со ШК нет листов.');
     rows=[];
+    const header=/^(?:шк|штрихкод(?:ы)?|баркод(?:ы)?)\s+короб(?:а|ов|ки|ок)$/i;
+    let headerRow=0, codeColumn=0;
     sheet.eachRow(row=>{
-      const values=[];
+      if(headerRow)return;
       row.eachCell(cell=>{
-        const value=cell.value;
-        if(typeof value==='number'&&!Number.isSafeInteger(value))fail('Длинные ШК в Excel нужно хранить как текст.');
-        const width=/^0+$/.test(cell.numFmt||'')?cell.numFmt.length:0;
-        values.push(typeof value==='number'&&width?String(value).padStart(width,'0'):cell.text.trim());
+        if(!codeColumn && header.test(norm(cell.text))){
+          headerRow=row.number;
+          codeColumn=cell.col;
+        }
       });
+    });
+    function codeText(cell){
+      const value=cell.value;
+      if(typeof value==='number'&&!Number.isSafeInteger(value))fail('Длинные ШК в Excel нужно хранить как текст.');
+      const width=/^0+$/.test(cell.numFmt||'')?cell.numFmt.length:0;
+      return typeof value==='number'&&width?String(value).padStart(width,'0'):cell.text.trim();
+    }
+    sheet.eachRow(row=>{
+      if(codeColumn){
+        if(row.number>headerRow)rows.push([codeText(row.getCell(codeColumn))]);
+        return;
+      }
+      const values=[];
+      row.eachCell(cell=>values.push(codeText(cell)));
       rows.push(values);
     });
   } else {
@@ -63,14 +79,6 @@ function placeBoxCodes(rows,codes) {
   return {placed,mixCount};
 }
 
-$('review').addEventListener('input',e=>{
-  if(!e.target.dataset.k)return;
-  resetAssemblyBoxCodes();
-});
-$('review').addEventListener('click',e=>{
-  if(!e.target.matches('[data-add],[data-remove]'))return;
-  resetAssemblyBoxCodes();
-});
 function resetAssemblyBoxCodes() {
   assemblyCodeRequest++;
   assemblyBoxCodes=null;
@@ -106,6 +114,7 @@ function applyAssemblyCodes(rows,codes,previous=new Map()) {
   $('assembly').textContent='Скачать сборочный со ШК';
   $('assemblyBoxCodesStatus').textContent='Заполнено коробок: '+next.size+' из '+boxes.length+'. '+(next.size===boxes.length?'Все ШК проставлены.':'Осталось заполнить: '+(boxes.length-next.size)+'.')+' В этом списке миксов: '+mixCount+'.';
   clearAssemblyBatch();
+  saveDraft();
 }
 
 function selectedBatchRange() {
@@ -157,3 +166,5 @@ $('assemblyBoxCodes').addEventListener('change',async e=>{
     e.target.value='';
   }
 });
+
+restoreDraft();

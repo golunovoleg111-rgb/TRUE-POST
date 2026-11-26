@@ -56,6 +56,35 @@ on('catalog',async()=>{const w=await fileBook($('catalog'));function choose(i){c
 on('alias',e=>{const f=e.target.elements;save({...db,aliases:{...db.aliases,[norm(f.abbr.value)]:f.product.value.trim()}});e.target.reset()},'submit');
 on('backup',()=>download('true-post.json',JSON.stringify(db,null,2),'application/json'));
 on('restore',async()=>{const d=JSON.parse(await $('restore').files[0].text());if(d.version!==1||!Array.isArray(d.catalog)||!d.catalog.every(v=>v&&['barcode','product','color','size'].every(k=>typeof v[k]==='string'&&v[k]))||![d.aliases,d.settings,d.format].every(o=>o&&typeof o==='object'&&!Array.isArray(o))||!Object.values(d.aliases).every(v=>typeof v==='string'))fail('Несовместимая база');if(confirm('Заменить текущую базу данными из файла?'))save(d)},'change');
+const draftKey='true-post-assembly-draft-v1';
+function saveDraft(){
+  if(!boxes.length)return;
+  try{
+    localStorage.setItem(draftKey,JSON.stringify({boxes,codes:assemblyBoxCodes?[...assemblyBoxCodes]:null}));
+    $('draftStatus').textContent='Черновик сохранён в этом браузере.';
+  }catch{
+    $('draftStatus').textContent='Не удалось сохранить черновик. Изменения пока доступны на этой странице.';
+  }
+}
+function restoreDraft(){
+  try{
+    const draft=JSON.parse(localStorage.getItem(draftKey)||'null');
+    if(!draft?.boxes?.length)return;
+    const codes=draft.codes?new Map(draft.codes):null;
+    boxes=draft.boxes;
+    assemblyBoxCodes=codes;
+    $('assemblyBoxCodesPanel').hidden=false;
+    $('draftTools').hidden=false;
+    review();
+    $('draftStatus').textContent='Черновик восстановлен.';
+    if(codes)$('assemblyBoxCodesStatus').textContent='Восстановлено ШК коробов: '+codes.size+' из '+boxes.length+'.';
+  }catch{
+    $('draftTools').hidden=false;
+    $('saveDraft').disabled=true;
+    $('draftStatus').textContent='Не удалось открыть сохранённый черновик.';
+  }
+}
+$('saveDraft').onclick=saveDraft;
 on('parse', async()=>{
   const button=$('parse'), status=$('parseStatus'), result=[];
   const sources=layoutSources().map(source=>({...source,fill:sourceFill(source)}));
@@ -67,7 +96,7 @@ on('parse', async()=>{
     const color=fillOptions.find(([value])=>value===source.fill)?.[1]||'#'+source.fill;
     counts.push(source.label+' · '+color+' · коробок: '+records.length);
   }
-  button.disabled=true; resetAssemblyBoxCodes(); $('assemblyBoxCodesPanel').hidden=true; boxes=[]; $('review').replaceChildren();
+  button.disabled=true;
   const show=t=>status.textContent=t;
   try {
     if(!urls.length&&!files.length)fail('Вставьте ссылку или выберите XLSX.');
@@ -92,11 +121,20 @@ on('parse', async()=>{
     }
     for(const source of files){show('Читаю '+source.label+'…');await collect(await source.file.arrayBuffer(),source)}
     if(!result.length)fail('На выбранных листах нет коробок с указанной заливкой.\n'+counts.join('\n'));
-    showReady=false;
-    boxes=result.map(b=>{
+    const nextBoxes=result.map(b=>{
       const items=decode(b.raw), incomplete=items.some(x=>!x.size||!x.qty);
       return {...b,items,incomplete,manual:Boolean(b.comment)||incomplete};
-    });$('assemblyBoxCodesPanel').hidden=false;review();show('Найдено коробок: '+boxes.length+'\n'+counts.join('\n'));
+    });
+    if(boxes.length && !confirm('Заменить текущий черновик новой сборкой?')){show('Текущий черновик сохранён.');return}
+    showReady=false;
+    resetAssemblyBoxCodes();
+    boxes=nextBoxes;
+    $('assemblyBoxCodesPanel').hidden=false;
+    $('draftTools').hidden=false;
+    $('saveDraft').disabled=false;
+    review();
+    saveDraft();
+    show('Найдено коробок: '+boxes.length+'\n'+counts.join('\n'));
   }catch(err){show(err.message)}finally{button.disabled=false;$('layoutLoading').hidden=true}
 });
 function review(){reviewContents();
