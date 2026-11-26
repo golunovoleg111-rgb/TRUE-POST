@@ -85,8 +85,10 @@ function reviewContents(){
       const product=mappedProduct(x.product);
       const choices=db.catalog.filter(v=>productAliasKey(v.product)===productAliasKey(product)&&colorKey(v.color,v.product)===colorKey(x.color,product)).sort((a,b)=>String(a.size).localeCompare(String(b.size),'ru',{numeric:true}));
       const attrs=' data-b="'+i+'" data-j="'+j+'" ';
-      const selected=choices.some(v=>v.barcode===x.barcode);
-      const picker=choices.length?'<select aria-label="Размер и баркод" '+attrs+'data-k="barcode"><option value="">Выберите размер и баркод</option>'+choices.map(v=>'<option value="'+esc(v.barcode)+'" '+(v.barcode===x.barcode?'selected':'')+'>'+esc(v.size)+' — '+esc(v.barcode)+'</option>').join('')+(x.barcode&&!selected?'<option selected>'+esc(x.barcode)+'</option>':'')+'</select>':'';
+      const options=[{barcode:'',label:'Выберите размер и баркод'},...choices.map(v=>({barcode:v.barcode,label:v.size+' — '+v.barcode}))];
+      if(x.barcode&&!options.some(v=>v.barcode===x.barcode))options.push({barcode:x.barcode,label:x.barcode});
+      const current=options.find(v=>v.barcode===x.barcode)||options[0];
+      const picker=choices.length?'<details class="fill-dropdown barcode-picker"><summary><span>'+esc(current.label)+'</span></summary><div class="fill-palette barcode-options" role="group" aria-label="Размер и баркод">'+options.map(v=>'<button type="button" data-pick-barcode="'+esc(v.barcode)+'" aria-pressed="'+(v.barcode===x.barcode)+'">'+esc(v.label)+'</button>').join('')+'</div></details>':'';
       return '<div class="mix-row"><strong>'+esc([x.product,x.color,x.size].filter(Boolean).join(' · '))+'</strong>'+picker+'<label>Баркод<input list="codes" '+attrs+'data-k="barcode" value="'+esc(x.barcode)+'"></label><label>Количество<input type="number" min="1" step="1" '+attrs+'data-k="qty" value="'+(x.qty||'')+'"></label>'+(b.items.length>1?'<button class="minor" data-remove="'+i+','+j+'">Убрать позицию</button>':'')+'</div>';
     }).join('');
     return '<details '+(needsCheck(b)?'open':'')+'><summary><strong>Палета №'+esc(b.p)+' · коробка '+(i+1)+'</strong> <span class="box-caption">· '+esc(b.raw.replace(/\n/g,' · '))+'</span>'+'</summary>'+(b.manual?'<p>'+(b.comment?'Указан микс с комментарием. ':b.incomplete?'В ячейке нет полного состава. Проверьте комментарий в расстановке. ':'')+'Укажите содержимое коробки вручную.</p>':'')+(b.comment?'<pre>'+esc(b.comment)+'</pre>':'')+rows+'<div class="actions"><button class="minor" data-add="'+i+'">Добавить позицию</button><button data-confirm="'+i+'" '+(canConfirm(b)?'':'disabled')+'>Подтвердить коробку</button></div></details>';
@@ -96,14 +98,59 @@ function reviewContents(){
   $('showReady').onclick=()=>{showReady=!showReady;review()};
   host.onfocusin=e=>{if(e.target.matches('input[list="codes"]')&&!$('codes').children.length)$('codes').innerHTML=db.catalog.map(v=>'<option value="'+esc(v.barcode)+'">'+esc([v.product,v.color,v.size].join(' · '))+'</option>').join('')};
   host.oninput=e=>{const d=e.target.dataset;if(!d.k)return;const box=boxes[d.b],item=box.items[d.j];item[d.k]=d.k==='qty'?Number(e.target.value):e.target.value.trim();box.manual=true;
-    if(d.k==='barcode'){const row=e.target.closest('.mix-row');row.querySelectorAll('[data-k="barcode"]').forEach(el=>{if(el!==e.target)el.value=item.barcode});const found=catalogIndex.barcodes.get(item.barcode);if(found)item.size=found.size}
+    if(d.k==='barcode'){
+      const row=e.target.closest('.mix-row');
+      const picker=row.querySelector('.barcode-picker');
+      if(picker){
+        const options=Array.from(picker.querySelectorAll('button'));
+        options.forEach(option=>option.setAttribute('aria-pressed',option.dataset.pickBarcode===item.barcode));
+        const selected=options.find(option=>option.dataset.pickBarcode===item.barcode);
+        picker.querySelector('summary span').textContent=selected?.textContent || item.barcode;
+      }
+      const found=catalogIndex.barcodes.get(item.barcode);
+      if(found)item.size=found.size;
+    }
     e.target.closest('details').querySelector('[data-confirm]').disabled=!canConfirm(box);
     resetAssemblyBoxCodes();
     saveDraft();
   };
+  host.onfocusout=e=>{
+    const picker=e.target.closest('.barcode-picker');
+    if(picker && !picker.contains(e.relatedTarget))picker.open=false;
+  };
+  host.onkeydown=e=>{
+    const picker=e.target.closest('.barcode-picker');
+    if(!picker)return;
+    const summary=picker.querySelector('summary');
+    if(e.key==='Escape' && picker.open){
+      e.preventDefault();picker.open=false;summary.focus();return;
+    }
+    if(!['ArrowDown','ArrowUp','Home','End'].includes(e.key))return;
+    e.preventDefault();
+    picker.open=true;
+    const options=Array.from(picker.querySelectorAll('button'));
+    const index=options.indexOf(e.target);
+    const next=e.key==='Home'?0:e.key==='End'?options.length-1:
+      e.key==='ArrowDown'?Math.min(index+1,options.length-1):index<0?options.length-1:Math.max(index-1,0);
+    options[next].focus();
+  };
   host.onclick=e=>{const d=e.target.dataset;
+    if(d.pickBarcode!==undefined){
+      const picker=e.target.closest('.barcode-picker');
+      const input=picker.closest('.mix-row').querySelector('[data-k="barcode"]');
+      input.value=d.pickBarcode;
+      input.dispatchEvent(new Event('input',{bubbles:true}));
+      picker.open=false;
+      picker.querySelector('summary').focus();
+    }
     if(d.add!==undefined){const b=boxes[d.add],last=b.items.at(-1);b.items.push({...last,size:'',qty:0,barcode:''});b.manual=true;resetAssemblyBoxCodes();review();saveDraft()}
     if(d.remove!==undefined){const [i,j]=d.remove.split(',');boxes[i].items.splice(+j,1);boxes[i].manual=true;resetAssemblyBoxCodes();review();saveDraft()}
     if(d.confirm!==undefined){const b=boxes[d.confirm];if(!canConfirm(b)){msg('Проверьте баркоды и количество в коробке '+(+d.confirm+1));return}b.manual=false;msg('');review();saveDraft()}
   };
 }
+
+document.addEventListener('pointerdown',e=>{
+  document.querySelectorAll('.barcode-picker[open]').forEach(picker=>{
+    if(!picker.contains(e.target))picker.open=false;
+  });
+});

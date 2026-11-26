@@ -90,3 +90,20 @@ main :is(.page-intro p,.field-hint), #review > p, #review details > p,
 #review .mix-row > label { font-size: 12px; color: #63566f; }
 #review button[data-confirm]:disabled { opacity: .48; cursor: not-allowed; box-shadow: none; }
 #draftTools[hidden] { display: none; }
+
+#review .barcode-picker { margin: 0; min-width: min(218px, 100%); }
+#review .barcode-picker > summary { padding: 6px 10px; justify-content: space-between; }
+#review .barcode-picker > summary::before { content: none; }
+#review .barcode-options {
+  left: 0;
+  right: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: auto;
+  min-width: 0;
+  max-height: 230px;
+  overflow-y: auto;
+  background: #fffaff;
+}
+#review .barcode-options button { justify-content: flex-start; text-align: left; }
+#review .barcode-options button:focus-visible { outline: 2px solid #894bb3; outline-offset: -2px; }
