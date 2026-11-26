@@ -1,4 +1,6 @@
 'use strict';
+const buildNumber=new URL(document.currentScript.src).searchParams.get('v');
+document.getElementById('buildNumber').textContent='Сборка №'+buildNumber;
 const $=id=>document.getElementById(id), esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])), norm=v=>String(v??'').trim().toLowerCase().replace(/ё/g,'е').replace(/\s+/g,' ');
 const blank={version:1,catalog:[],aliases:{},settings:{},format:{}};
 let db=JSON.parse(localStorage.getItem('true-post-v1')||JSON.stringify(blank)),boxes=[];

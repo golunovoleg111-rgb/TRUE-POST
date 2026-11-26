@@ -81,3 +81,5 @@ td,th{padding:4px 7px}
   .layout-source-name{font-size:13px}
   .mix-row strong{flex-basis:100%}
 }
+
+#buildNumber{padding:16px 0;text-align:center;font-size:13px;color:#526174}
