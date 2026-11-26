@@ -175,6 +175,47 @@ function checked(rows){const byBox=new Map(),byCode=new Map();for(const x of row
 async function templateFile(items){const m=new Map();for(const x of items)m.set(x.barcode,(m.get(x.barcode)||0)+x.qty);await writeBook('template.xlsx',[['Баркод','Количество'],...m])}
 on('template',async()=>templateFile(await imported()));on('final',async()=>writeBook('shk-excel.xlsx',[['Баркод товара','Кол-во товаров','ШК короба'],...checked(await imported()).map(x=>[x.barcode,x.qty,x.shk])]));
 on('cards',async()=>{const rows=checked(await imported()),pallets=new Map();for(const x of rows){if(!x.p)fail('В файле нет номеров палет');if(!pallets.has(x.p))pallets.set(x.p,new Map());const p=pallets.get(x.p);if(!p.has(x.shk))p.set(x.shk,[]);p.get(x.shk).push(x)}const sum=a=>a.reduce((n,x)=>n+x.qty,0);const html=[...pallets].map(([p,groups])=>'<details open><summary>Паллета № '+esc(p)+' <small>Коробов: '+groups.size+' · Товаров: '+sum([...groups.values()].flat())+' шт.</small></summary>'+[...groups].map(([code,a])=>'<article><input type="checkbox"><div><b>'+esc(code)+'</b> · '+(new Set(a.map(x=>x.barcode)).size===1?'МОНО':'МИКС')+'<br>Итого: '+sum(a)+' шт.</div><ul>'+a.map(x=>'<li>'+esc([x.product||x.barcode,x.color,'размер '+x.size].join(', '))+' — '+x.qty+' шт.</li>').join('')+'</ul></article>').join('')+'</details>').join('');download('Задание по палетам.html','<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>Задание по палетам</title><style>body{font:16px Arial;background:#f5f7fa;margin:3vw}details{background:white;border-left:5px solid #2673c5;border-radius:8px;margin:16px 0;overflow:hidden}summary{padding:18px;background:#dceaff;font-weight:bold;cursor:pointer}small{float:right;color:#205b49}article{display:flex;gap:20px;align-items:center;padding:14px;border-top:1px solid #ddd}article:has(:checked){opacity:.5}ul{margin:0}</style><h1>Задание по палетам</h1>'+html,'text/html;charset=utf-8')});
-on('packing',e=>{const f=e.target.elements,count=+f.count.value,warehouse=f.warehouse.value.trim(),supply=f.supply.value.trim(),date=f.deliveryDate.value;if(!warehouse||!supply||!date||count<1||count>999)fail('Проверьте поля');const deliveryDate=date.split('-').reverse().join('-');const win=window.open('','_blank');if(!win)fail('Разрешите открытие окна печати');win.document.write('<!doctype html><meta charset=utf-8><title>Упаковочные листы</title><style>@page{size:A4;margin:10mm 12mm}body{margin:0;font:18pt Arial}article{break-after:page}article:last-child{break-after:auto}h1{font-size:22pt;margin:0 0 3mm}table{border-collapse:collapse;width:100%;table-layout:fixed}td{border:1px solid;padding:3.5mm 4mm}td+td{font-weight:bold}</style>'+Array.from({length:count},(_,i)=>'<article><h1>Упаковочный лист</h1><table>'+[['Номер палеты',i+1],['Кол-во паллет в поставке',count],['Номер поставки',supply],['Кол-во коробов на данной паллете',16],['Склад назначения',warehouse],['Тип поставки','Короб'],['Наименование поставщика, ИНН','ИП Гладкая А. В.'],['Дата поставки',deliveryDate]].map(([a,b])=>'<tr><td>'+a+'</td><td>'+esc(b)+'</td></tr>').join('')+'</table></article>').join(''));win.document.close();win.focus();win.print();save({...db,settings:{warehouse}})},'submit');$('packing').elements.warehouse.value=db.settings.warehouse||'';
+on('packing',e=>{
+  const fields=e.target.elements;
+  const count=Number(fields.count.value);
+  const warehouse=fields.warehouse.value.trim();
+  const supply=fields.supply.value.trim();
+  const date=fields.deliveryDate.value;
+  if(!warehouse||!supply||!date||!Number.isInteger(count)||count<1||count>999)fail('Проверьте поля');
+  const deliveryDate=date.split('-').reverse().join('-');
+  const win=window.open('','_blank');
+  if(!win)fail('Разрешите открытие окна печати');
+  const pages=Array.from({length:count},(_,i)=>{
+    const rows=[
+      ['Номер палеты',i+1],['Кол-во паллет в поставке',count],
+      ['Номер поставки',supply],['Кол-во коробов на данной паллете',16],
+      ['Склад назначения',warehouse],['Тип поставки','Короб'],
+      ['Наименование поставщика, ИНН','ИП Гладкая А. В.'],['Дата поставки',deliveryDate],
+    ];
+    return '<article><h1>Упаковочный лист</h1><table>'+
+      rows.map(([label,value])=>'<tr><td>'+label+'</td><td>'+esc(value)+'</td></tr>').join('')+
+      '</table></article>';
+  }).join('');
+  win.document.write(`<!doctype html><html lang="ru"><meta charset="utf-8"><title>Упаковочные листы</title>
+    <style>
+      /* Internal padding reserves print space without browser headers and footers. */
+      @page { size: A4; margin: 0; }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; }
+      body { font: 18pt Arial, sans-serif; }
+      article { padding: 12mm; }
+      article + article { break-before: page; }
+      h1 { font-size: 22pt; margin: 0 0 3mm; }
+      table { width: 100%; table-layout: fixed; border: 1px solid; border-spacing: 0; }
+      td { padding: 3.5mm 4mm; overflow-wrap: anywhere; }
+      tr + tr td { border-top: 1px solid; }
+      td + td { border-left: 1px solid; font-weight: bold; }
+      tr { break-inside: avoid; }
+    </style>`+pages+'</html>');
+  win.document.close();
+  win.focus();
+  win.print();
+  save({...db,settings:{warehouse}});
+},'submit');$('packing').elements.warehouse.value=db.settings.warehouse||'';
 if(location.hash.startsWith('#assembly='))(async()=>{const bytes=Uint8Array.from(atob(location.hash.slice(10)),c=>c.charCodeAt(0));const rows=JSON.parse(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).text());readAssembly(rows);shared=rows;tab('Файлы для WB');const el=document.createElement('div');el.innerHTML='<h2>Сборочная таблица</h2><button id="getshared">Скачать сборочный XLSX</button><table>'+rows.map(r=>'<tr>'+r.slice(0,6).map(v=>'<td>'+esc(v)+'</td>').join('')+'</tr>').join('')+'</table>';$('sharedSource').append(el);on('getshared',()=>writeBook('Сборочный.xlsx',rows,true))})().catch(()=>msg('Некорректная ссылка на сборку'));
 
