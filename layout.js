@@ -34,15 +34,34 @@ async function readLayout(buffer, label, selectedColor='FFFF00') {
   const strings=zip.file('xl/sharedStrings.xml')?Array.from((await xml('xl/sharedStrings.xml')).getElementsByTagNameNS('*','si'),s=>Array.from(s.getElementsByTagNameNS('*','t'),t=>t.textContent).join('')):[];
   const raw=await zip.file(path).async('string'), headers=new Map(), boxes=[];
   const attr=(s,k)=>s.match(new RegExp('\\s'+k+'="([^"]*)"'))?.[1];
+  const column=letters=>[...letters].reduce((n,c)=>26*n+c.charCodeAt(0)-64,0);
+  // A four-column merge spans both sides of a pallet. Its value may be numeric.
+  const palletMerges=new Map();
+  for(const merge of raw.matchAll(/<(?:\w+:)?mergeCell\b([^>]*)>/g)){
+    const range=attr(merge[1],'ref')?.match(/^([A-Z]+)(\d+):([A-Z]+)\2$/);
+    if(range && column(range[3])-column(range[1])===3)palletMerges.set(range[1]+range[2],column(range[3]));
+  }
+  const cells=[], mergedColumns=new Set();
   for(const m of raw.matchAll(/<(?:\w+:)?c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/(?:\w+:)?c>)/g)){
     if(!m[2])continue;
-    const a=attr(m[1],'r'), type=attr(m[1],'t'),v=m[2].match(/<(?:\w+:)?v>([^<]*)</)?.[1];
-    const value=String(type==='s'?strings[+v]||'':type==='inlineStr'?parseXml('<root>'+m[2]+'</root>').documentElement.textContent:v||'').trim();
-    if(!value||!a)continue;
-    const i=a.match(/^([A-Z]+)(\d+)$/), col=[...i[1]].reduce((n,c)=>26*n+c.charCodeAt(0)-64,0), row=+i[2];
-    const h=value.match(/^(?:пал+ет[аы]?\s*)?№\s*(\d+)(?:\s*(?:[-–].*|\([^)]*\)))?$/i);
-    if(h||/^(?:б\/н(?:\s|$)|№?\s*\?$)/i.test(value)){for(let c=col;c<col+4;c++)headers.set(c,{row,n:h?.[1]||value});continue}
-    if(matchingFill[+(attr(m[1],'s')||0)])boxes.push({p:headers.get(col)?.row<row?headers.get(col).n:'Уточнить ('+a+')',id:label+'!'+a,raw:value});
+    const a=attr(m[1],'r'), type=attr(m[1],'t'), v=m[2].match(/<(?:\w+:)?v>([^<]*)</)?.[1];
+    const value=String(type==='s'?strings[+v]||'':type==='inlineStr'?parseXml('<root>'+m[2]+'</root>').documentElement.textContent:type==='str' && v?parseXml('<root>'+v+'</root>').documentElement.textContent:v||'').trim();
+    const address=a?.match(/^([A-Z]+)(\d+)$/);
+    if(!value || !address)continue;
+    const col=column(address[1]), row=Number(address[2]), end=palletMerges.get(a);
+    const explicit=value.match(/^(?:пал+ет[аы]?\s*)?№\s*(\d+)(?:\s*(?:[-–—].*|\([^)]*\)))?$/i);
+    const unknown=/^(?:б\/н(?:\s|$)|№?\s*\?$)/i.test(value);
+    const name=explicit?.[1] || (unknown?value:null) || (end && /^\d+$/.test(value)?value:null);
+    if(end && name)for(let c=col;c<=end;c++)mergedColumns.add(c);
+    cells.push({a,col,row,end,name,value,selected:matchingFill[Number(attr(m[1],'s')||0)]});
+  }
+  // Inside a pallet grid, standalone entries such as №75 are not headers.
+  for(const {a,col,row,end,name,value,selected} of cells){
+    if(name && (end || !mergedColumns.has(col))){
+      for(let c=col;c<=(end||col+3);c++)headers.set(c,{row,n:name});
+      continue;
+    }
+    if(selected && !name)boxes.push({p:headers.get(col)?.row<row?headers.get(col).n:'Уточнить ('+a+')',id:label+'!'+a,raw:value});
   }
   const relPath=path.replace(/([^/]+)$/, '_rels/$1.rels');
   if(zip.file(relPath)){
