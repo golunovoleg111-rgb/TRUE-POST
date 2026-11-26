@@ -102,23 +102,14 @@ on('assembly',()=>writeBook(assemblyBoxCodes?'Сборочный со ШК.xlsx'
 function flat(){const index=boxes.findIndex(b=>b.manual);if(index>=0)fail("Подтвердите содержимое коробки "+(index+1));return boxes.flatMap((b,i)=>b.items.map(x=>{const c=catalogIndex.barcodes.get(x.barcode);if(!c||!Number.isSafeInteger(x.qty)||x.qty<1)fail('Проверьте баркод и количество в коробке '+(i+1));return {...c,qty:x.qty,p:b.p,no:i+1,shk:''}}))}
 const assemblyHeader=['Баркод товара','Кол-во товаров','ШК короба','Цвет','Размер','Изделие'];
 function assemblyRows(){
-  const sections=[];
-  let unknown, previous;
+  const sections=new Map();
   for(const item of flat()){
-    const isUnknown=/^\s*(?:№\s*)?\?\s*$/.test(item.p);
-    let section=previous;
-    if(isUnknown && unknown){
-      section=unknown;
-    }else if(!section || section.p!==item.p){
-      section={p:isUnknown?'?':item.p,rows:[]};
-      sections.push(section);
-      if(isUnknown)unknown=section;
-    }
+    const pallet=String(item.p).trim().replace(/^№\s*\?$/, '?');
+    if(!sections.has(pallet))sections.set(pallet,[]);
     const code=assemblyBoxCodes?.get(String(item.no))||'';
-    section.rows.push([item.barcode,item.qty,code,item.color,item.size,item.product,item.no]);
-    previous=section;
+    sections.get(pallet).push([item.barcode,item.qty,code,item.color,item.size,item.product,item.no]);
   }
-  return [assemblyHeader,...sections.flatMap(section=>[[section.p],...section.rows])];
+  return [assemblyHeader,...Array.from(sections).flatMap(([pallet,rows])=>[[pallet],...rows])];
 }
 function readAssembly(rows){let p='';const out=[];for(const r of rows.slice(1)){if(!r.some(Boolean))continue;if(!r[1]&&r[0]){p=r[0];continue}const [barcode,qty,shk,color,size,product,no]=r;if(!barcode||!Number.isSafeInteger(+qty)||+qty<1)fail('Некорректная строка для баркода '+barcode);out.push({barcode:String(barcode),qty:+qty,shk:String(shk||'').trim(),p:String(p),color,size,product:product||catalogIndex.barcodes.get(String(barcode))?.product||'',no})}if(!out.length)fail('Нет товарных строк');return out}
 let shared=null;
