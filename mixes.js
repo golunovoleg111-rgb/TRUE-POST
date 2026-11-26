@@ -22,18 +22,19 @@ const warehouseProducts = {
   'б№5':'1_Б_№5_Теплые',
   'спорт':'228_К_спорт',
 };
-const productAliasKey=value=>norm(value).replace(/\s*№\s*/g,'№');
+const productAliasKey=value=>norm(value).replace(/\s*№\s*/g,'№').replace(/^п\s*(?:[№_-]\s*)?4$/,'п4');
 function mappedProduct(product) {
   const key=productAliasKey(product);
   return catalogIndex.aliases.get(key) || product;
 }
 
-function colorKey(value) {
+function colorKey(value, product) {
   let color = norm(value).replace(/[‐‑–—.]+/g,'-').replace(/-+$/,'');
   const stripe = /(?:[\s_*-]+[пp]|[\s_-]+в[\s_-]+пол(?:ос|со)ку)$/u;
   const striped = stripe.test(color);
   color = color.replace(stripe,'').replace(/\s*\/\s*/g,'/').replace(/[\s_-]+/g,'-');
   color = colorAliases.get(color) || color;
+  if(productAliasKey(product)==='п4' && color==='темно-розовый')color='пудра';
   return color + (striped ? '_п' : '');
 }
 
@@ -81,7 +82,7 @@ function reviewContents(){
     if(!showReady&&!needsCheck(b))return '';
     const rows=b.items.map((x,j)=>{
       const product=mappedProduct(x.product);
-      const choices=db.catalog.filter(v=>norm(v.product)===norm(product)&&colorKey(v.color)===colorKey(x.color)).sort((a,b)=>String(a.size).localeCompare(String(b.size),'ru',{numeric:true}));
+      const choices=db.catalog.filter(v=>productAliasKey(v.product)===productAliasKey(product)&&colorKey(v.color,v.product)===colorKey(x.color,product)).sort((a,b)=>String(a.size).localeCompare(String(b.size),'ru',{numeric:true}));
       const attrs=' data-b="'+i+'" data-j="'+j+'" ';
       const selected=choices.some(v=>v.barcode===x.barcode);
       const picker=choices.length?'<select aria-label="Размер и баркод" '+attrs+'data-k="barcode"><option value="">Выберите размер и баркод</option>'+choices.map(v=>'<option value="'+esc(v.barcode)+'" '+(v.barcode===x.barcode?'selected':'')+'>'+esc(v.size)+' — '+esc(v.barcode)+'</option>').join('')+(x.barcode&&!selected?'<option selected>'+esc(x.barcode)+'</option>':'')+'</select>':'';

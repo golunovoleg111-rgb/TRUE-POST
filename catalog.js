@@ -2,7 +2,7 @@ function createCatalogIndex(items) {
   const variants = new Map(), barcodes = new Map();
   // A suffix П denotes a separate stock item. Only its separator varies.
   function key(product, color, size) {
-    return JSON.stringify([norm(product), colorKey(color), norm(size)]);
+    return JSON.stringify([productAliasKey(product), colorKey(color, product), norm(size)]);
   }
   for (const item of items) {
     const k = key(item.product, item.color, item.size);
