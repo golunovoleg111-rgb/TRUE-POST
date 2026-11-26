@@ -148,7 +148,7 @@ $('assemblyBoxCodes').addEventListener('change',async e=>{
   clearAssemblyBatch();
   status.textContent='Расставляю ШК…';
   try {
-    // Assign the uploaded codes in picking order, before grouping rows for export.
+    // Box numbering follows the same pallet order as the export.
     const rows=flat();
     const codes=await loadBoxCodes(file);
     if(request!==assemblyCodeRequest)return;

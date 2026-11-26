@@ -57,10 +57,19 @@ on('alias',e=>{const f=e.target.elements;save({...db,aliases:{...db.aliases,[nor
 on('backup',()=>download('true-post.json',JSON.stringify(db,null,2),'application/json'));
 on('restore',async()=>{const d=JSON.parse(await $('restore').files[0].text());if(d.version!==1||!Array.isArray(d.catalog)||!d.catalog.every(v=>v&&['barcode','product','color','size'].every(k=>typeof v[k]==='string'&&v[k]))||![d.aliases,d.settings,d.format].every(o=>o&&typeof o==='object'&&!Array.isArray(o))||!Object.values(d.aliases).every(v=>typeof v==='string'))fail('Несовместимая база');if(confirm('Заменить текущую базу данными из файла?'))save(d)},'change');
 const draftKey='true-post-assembly-draft-v1';
+function groupBoxesByPallet(source){
+  const pallets=new Map();
+  source.forEach((box,index)=>{
+    const pallet=String(box.p).trim().replace(/^№\s*\?$/, '?');
+    if(!pallets.has(pallet))pallets.set(pallet,[]);
+    pallets.get(pallet).push({box,index});
+  });
+  return [...pallets.values()].flat();
+}
 function saveDraft(){
   if(!boxes.length)return;
   try{
-    localStorage.setItem(draftKey,JSON.stringify({boxes,codes:assemblyBoxCodes?[...assemblyBoxCodes]:null}));
+    localStorage.setItem(draftKey,JSON.stringify({order:'pallet',boxes,codes:assemblyBoxCodes?[...assemblyBoxCodes]:null}));
     $('draftStatus').textContent='Черновик сохранён в этом браузере.';
   }catch{
     $('draftStatus').textContent='Не удалось сохранить черновик. Изменения пока доступны на этой странице.';
@@ -71,13 +80,20 @@ function restoreDraft(){
     const draft=JSON.parse(localStorage.getItem(draftKey)||'null');
     if(!draft?.boxes?.length)return;
     const codes=draft.codes?new Map(draft.codes):null;
-    boxes=draft.boxes;
-    assemblyBoxCodes=codes;
+    const legacy=draft.order!=='pallet';
+    const ordered=groupBoxesByPallet(draft.boxes);
+    boxes=ordered.map(({box})=>box);
+    assemblyBoxCodes=codes && new Map(ordered.flatMap(({index},i)=>{
+      const code=codes.get(String(index+1));
+      return code?[[String(i+1),code]]:[];
+    }));
     $('assemblyBoxCodesPanel').hidden=false;
     $('draftTools').hidden=false;
     review();
     $('draftStatus').textContent='Черновик восстановлен.';
-    if(codes)$('assemblyBoxCodesStatus').textContent='Восстановлено ШК коробов: '+codes.size+' из '+boxes.length+'.';
+    if(codes)$('assemblyBoxCodesStatus').textContent=legacy
+      ? 'Восстановлены ШК из старого черновика. Чтобы назначить их в новом порядке, загрузите полный список ШК заново.'
+      : 'Восстановлено ШК коробов: '+codes.size+' из '+boxes.length+'.';
   }catch{
     $('draftTools').hidden=false;
     $('saveDraft').disabled=true;
@@ -128,7 +144,7 @@ on('parse', async()=>{
     if(boxes.length && !confirm('Заменить текущий черновик новой сборкой?')){show('Текущий черновик сохранён.');return}
     showReady=false;
     resetAssemblyBoxCodes();
-    boxes=nextBoxes;
+    boxes=groupBoxesByPallet(nextBoxes).map(({box})=>box);
     $('assemblyBoxCodesPanel').hidden=false;
     $('draftTools').hidden=false;
     $('saveDraft').disabled=false;
