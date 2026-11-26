@@ -101,7 +101,25 @@ function review(){reviewContents();
 on('assembly',()=>writeBook(assemblyBoxCodes?'Сборочный со ШК.xlsx':'Сборочный.xlsx',assemblyRows(),true));on('direct',()=>templateFile(flat()));on('share',async()=>{const rows=assemblyRows();const bytes=new Uint8Array(await new Response(new Blob([JSON.stringify(rows)]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());const hash=btoa(Array.from(bytes,b=>String.fromCharCode(b)).join(''));const u=location.href.split('#')[0]+'#assembly='+hash;$('linkout').innerHTML='<label>Ссылка с копией задания для сборки<input readonly value="'+esc(u)+'"></label>';$('linkout').querySelector('input').select();try{await navigator.clipboard.writeText(u);msg('Ссылка скопирована')}catch{msg('Скопируйте выделенную ссылку')}})}
 function flat(){const index=boxes.findIndex(b=>b.manual);if(index>=0)fail("Подтвердите содержимое коробки "+(index+1));return boxes.flatMap((b,i)=>b.items.map(x=>{const c=catalogIndex.barcodes.get(x.barcode);if(!c||!Number.isSafeInteger(x.qty)||x.qty<1)fail('Проверьте баркод и количество в коробке '+(i+1));return {...c,qty:x.qty,p:b.p,no:i+1,shk:''}}))}
 const assemblyHeader=['Баркод товара','Кол-во товаров','ШК короба','Цвет','Размер','Изделие'];
-function assemblyRows(includeCodes=true){const rows=[assemblyHeader];let prev;for(const x of flat()){if(prev!==x.p){rows.push([x.p]);prev=x.p}rows.push([x.barcode,x.qty,includeCodes?assemblyBoxCodes?.get(String(x.no))||'':'',x.color,x.size,x.product,x.no])}return rows}
+function assemblyRows(){
+  const sections=[];
+  let unknown, previous;
+  for(const item of flat()){
+    const isUnknown=/^\s*(?:№\s*)?\?\s*$/.test(item.p);
+    let section=previous;
+    if(isUnknown && unknown){
+      section=unknown;
+    }else if(!section || section.p!==item.p){
+      section={p:isUnknown?'?':item.p,rows:[]};
+      sections.push(section);
+      if(isUnknown)unknown=section;
+    }
+    const code=assemblyBoxCodes?.get(String(item.no))||'';
+    section.rows.push([item.barcode,item.qty,code,item.color,item.size,item.product,item.no]);
+    previous=section;
+  }
+  return [assemblyHeader,...sections.flatMap(section=>[[section.p],...section.rows])];
+}
 function readAssembly(rows){let p='';const out=[];for(const r of rows.slice(1)){if(!r.some(Boolean))continue;if(!r[1]&&r[0]){p=r[0];continue}const [barcode,qty,shk,color,size,product,no]=r;if(!barcode||!Number.isSafeInteger(+qty)||+qty<1)fail('Некорректная строка для баркода '+barcode);out.push({barcode:String(barcode),qty:+qty,shk:String(shk||'').trim(),p:String(p),color,size,product:product||catalogIndex.barcodes.get(String(barcode))?.product||'',no})}if(!out.length)fail('Нет товарных строк');return out}
 let shared=null;
 async function imported(){if(!$('assembled').files.length&&!shared&&assemblyBoxCodes)return readAssembly(assemblyRows());return readImportedSource()}
